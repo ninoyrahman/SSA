@@ -13,7 +13,7 @@ import test_util
 class TestGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Astrodynamics Test Runner")
+        self.root.title("SSA Test Runner")
         self.root.geometry("800x520")
         self.test_groups = {
             "Util": self._get_tests(test_util),
