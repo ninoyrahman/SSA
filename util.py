@@ -115,7 +115,11 @@ def kep_eqn_h(M, e, tolerance=1e-8, max_iterations=100):
     if tolerance <= 0:
         raise ValueError("tolerance must be positive")
 
-    if e < 1.6:
+    if abs(M) > 3.6:
+        # The linear large-M guess can be enormous and overflow sinh/cosh.
+        # The inverse-hyperbolic estimate remains close to the solution.
+        H = math.asinh(M / e)
+    elif e < 1.6:
         H = M - e if (-math.pi < M < 0 or M > math.pi) else M + e
     elif e < 3.6 and abs(M) > math.pi:
         H = M - math.copysign(e, M)
