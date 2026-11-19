@@ -1,6 +1,64 @@
 import math
 
 
+CANONICAL_EARTH_RADIUS_KM = 6378.137
+CANONICAL_EARTH_MU_KM3_S2 = 398600.4418
+
+
+def _canonical_si_scale(quantity, radius_km, mu_km3_s2):
+    """Return the SI scale for one ER/TU-derived quantity."""
+    if not isinstance(quantity, str):
+        raise ValueError("quantity must be a supported string")
+    if (not math.isfinite(radius_km) or radius_km <= 0
+            or not math.isfinite(mu_km3_s2) or mu_km3_s2 <= 0):
+        raise ValueError("radius_km and mu_km3_s2 must be finite and positive")
+
+    distance_m = radius_km * 1000.0
+    mu_m3_s2 = mu_km3_s2 * 1e9
+    time_s = math.sqrt(distance_m**3 / mu_m3_s2)
+    scales = {
+        "length": distance_m,
+        "area": distance_m**2,
+        "volume": distance_m**3,
+        "time": time_s,
+        "frequency": 1 / time_s,
+        "velocity": distance_m / time_s,
+        "acceleration": distance_m / time_s**2,
+        "jerk": distance_m / time_s**3,
+        "gravitational_parameter": distance_m**3 / time_s**2,
+        "specific_energy": distance_m**2 / time_s**2,
+    }
+    try:
+        return scales[quantity]
+    except KeyError as exc:
+        supported = ", ".join(scales)
+        raise ValueError(f"unsupported quantity {quantity!r}; choose from {supported}") from exc
+
+
+def canonical_to_si(value, quantity, *, radius_km=CANONICAL_EARTH_RADIUS_KM,
+                    mu_km3_s2=CANONICAL_EARTH_MU_KM3_S2):
+    """Convert an ER/TU canonical value to SI units.
+
+    ``quantity`` is one of ``length``, ``area``, ``volume``, ``time``,
+    ``frequency``, ``velocity``, ``acceleration``, ``jerk``,
+    ``gravitational_parameter``, or ``specific_energy``. The default scales
+    use Earth's equatorial radius and gravitational parameter. The returned
+    SI units are respectively m, m², m³, s, s⁻¹, m/s, m/s², m/s³, m³/s²,
+    and m²/s².
+    """
+    if not math.isfinite(value):
+        raise ValueError("value must be finite")
+    return value * _canonical_si_scale(quantity, radius_km, mu_km3_s2)
+
+
+def si_to_canonical(value, quantity, *, radius_km=CANONICAL_EARTH_RADIUS_KM,
+                    mu_km3_s2=CANONICAL_EARTH_MU_KM3_S2):
+    """Convert an SI value to ER/TU canonical units; see ``canonical_to_si``."""
+    if not math.isfinite(value):
+        raise ValueError("value must be finite")
+    return value / _canonical_si_scale(quantity, radius_km, mu_km3_s2)
+
+
 def find_c2_c3(psi):
     """Algorithm 1: Return c2 and c3 using Vallado's."""
     if psi > 1e-6:
