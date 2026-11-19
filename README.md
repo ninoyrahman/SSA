@@ -8,7 +8,7 @@ Python utilities for orbital mechanics calculations and regression checks based 
 - `util_maneuvers.py` - transfer orbits, plane changes, phasing, low-thrust transfers, and relative motion in Hill coordinates.
 - `util_transformation.py` - vector transformations between orbital reference frames.
 - `test_util.py` and `test_maneuvers.py` - regression checks for orbital utilities and maneuver calculations.
-- `test_gui.py` - a Tkinter interface for choosing a test suite (Util or Maneuvers) and running one test or the whole suite.
+- `ssa_gui.py` - a Tkinter interface for choosing a test suite (Util or Maneuvers) and running one test or the whole suite.
 
 ## Units and conventions
 
@@ -26,7 +26,7 @@ python -m pytest test_util.py test_maneuvers.py
 To open the interactive test runner:
 
 ```bash
-python test_gui.py
+python ssa_gui.py
 ```
 
 Select **Util** or **Maneuvers** in the first dropdown, then choose an individual test or **All tests** in the second.
