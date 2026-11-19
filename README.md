@@ -6,9 +6,11 @@ Python utilities for orbital mechanics calculations and regression checks based 
 
 - `util.py` - canonical/SI unit conversions, elliptic/parabolic/hyperbolic Kepler solvers, anomaly conversions, state-vector/orbital-element conversions, two-body propagation, and time-of-flight calculations.
 - `util_maneuvers.py` - transfer orbits, plane changes, phasing, low-thrust transfers, and relative motion in Hill coordinates.
+- `util_propagate.py` - sampled two-body orbital propagation.
+- `plotter.py` - orbit plotting and 3D locus animation helpers.
 - `util_transformation.py` - vector transformations between orbital reference frames.
-- `test_util.py` and `test_maneuvers.py` - regression checks for orbital utilities and maneuver calculations.
-- `ssa_gui.py` - a Tkinter interface for choosing a test suite (Util or Maneuvers) and running one test or the whole suite.
+- `test_util.py`, `test_maneuvers.py`, and `test_propagate.py` - regression checks for orbital utilities, maneuver calculations, and propagation/animation examples.
+- `ssa_gui.py` - a Tkinter interface for choosing the Util, Maneuvers, or Propagate test suite and running one test or the whole suite.
 
 ## Units and conventions
 
@@ -20,7 +22,7 @@ Install `pytest` if it is not already available, then run both suites from the p
 
 ```bash
 python -m pip install pytest
-python -m pytest test_util.py test_maneuvers.py
+python -m pytest test_util.py test_maneuvers.py test_propagate.py
 ```
 
 To open the interactive test runner:
@@ -29,4 +31,4 @@ To open the interactive test runner:
 python ssa_gui.py
 ```
 
-Select **Util** or **Maneuvers** in the first dropdown, then choose an individual test or **All tests** in the second.
+Select **Util**, **Maneuvers**, or **Propagate** in the first dropdown, then choose an individual test or **All tests** in the second. The Propagate suite includes orbital propagation and 3D animation examples.

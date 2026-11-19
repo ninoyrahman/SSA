@@ -7,6 +7,7 @@ import tkinter as tk
 from tkinter import ttk
 
 import test_maneuvers
+import test_propagate
 import test_util
 
 
@@ -18,6 +19,7 @@ class TestGUI:
         self.test_groups = {
             "Util": self._get_tests(test_util),
             "Maneuvers": self._get_tests(test_maneuvers),
+            "Propagate": self._get_tests(test_propagate),
         }
 
         controls = ttk.Frame(root, padding=10)
