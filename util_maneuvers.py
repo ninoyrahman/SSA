@@ -214,44 +214,44 @@ def combined_inclination_raan_change(inclination_initial, inclination_final,
 
 def minimum_combined_plane_change(v_initial, v_trans_a, v_trans_b,
                                   v_final, delta_i):
-    """Algorithm 42: minimize delta-v by splitting a plane change.
+    """Algorithm 42: estimate the minimum delta-v plane-change split.
 
     ``delta_i`` is the total plane change in radians. Returns
     ``(delta_i_initial, delta_i_final, delta_v_initial, delta_v_final,
-    delta_v_total)``. Uses a bounded golden-section minimization over the
-    fraction of plane change applied at the initial burn.
+    delta_v_total)``. Uses Vallado's analytical estimate for the initial
+    fraction of plane change, based on the circular-orbit velocity ratio.
     """
     speeds = (v_initial, v_trans_a, v_trans_b, v_final)
     if (not all(math.isfinite(x) and x >= 0 for x in speeds)
             or not math.isfinite(delta_i) or not 0 <= delta_i <= math.pi):
         raise ValueError("speeds must be finite and nonnegative; delta_i must be in [0, pi]")
 
-    def costs(fraction):
-        initial_angle = fraction * delta_i
-        final_angle = (1 - fraction) * delta_i
-        dv_initial = math.sqrt(max(0.0, v_initial**2 + v_trans_a**2
-                                  - 2 * v_initial * v_trans_a * math.cos(initial_angle)))
-        dv_final = math.sqrt(max(0.0, v_final**2 + v_trans_b**2
-                                - 2 * v_final * v_trans_b * math.cos(final_angle)))
-        return dv_initial + dv_final, dv_initial, dv_final
+    if delta_i == 0:
+        delta_i_initial = 0.0
+    else:
+        denominator_speed_product = v_final * v_trans_b
+        ratio = (math.inf if denominator_speed_product == 0 else
+                 (v_initial * v_trans_a) / denominator_speed_product)
 
-    # Golden-section search finds the minimum over the full allocation interval.
-    left, right = 0.0, 1.0
-    ratio = (math.sqrt(5) - 1) / 2
-    x1, x2 = right - ratio * (right - left), left + ratio * (right - left)
-    f1, f2 = costs(x1)[0], costs(x2)[0]
-    for _ in range(100):
-        if f1 <= f2:
-            right, x2, f2 = x2, x1, f1
-            x1 = right - ratio * (right - left)
-            f1 = costs(x1)[0]
-        else:
-            left, x1, f1 = x1, x2, f2
-            x2 = left + ratio * (right - left)
-            f2 = costs(x2)[0]
-    fraction = (left + right) / 2
-    total, dv_initial, dv_final = costs(fraction)
-    return fraction * delta_i, (1 - fraction) * delta_i, dv_initial, dv_final, total
+        # For circular orbits this ratio is R**(3/2), with R the
+        # final-to-initial orbit-radius ratio. atan2 preserves the quadrant.
+        fraction = math.atan2(
+            math.sin(delta_i), ratio + math.cos(delta_i)
+        ) / delta_i
+        fraction = min(1.0, max(0.0, fraction))
+        delta_i_initial = fraction * delta_i
+
+    delta_i_final = delta_i - delta_i_initial
+    dv_initial = math.sqrt(max(
+        0.0, v_initial**2 + v_trans_a**2
+        - 2 * v_initial * v_trans_a * math.cos(delta_i_initial)
+    ))
+    dv_final = math.sqrt(max(
+        0.0, v_final**2 + v_trans_b**2
+        - 2 * v_final * v_trans_b * math.cos(delta_i_final)
+    ))
+    return (delta_i_initial, delta_i_final, dv_initial, dv_final,
+            dv_initial + dv_final)
 
 
 def fixed_delta_v_maneuver(v_initial, v_final, v_trans_a, delta_v,
@@ -310,6 +310,8 @@ def circular_coplanar_phasing_different_orbits(theta_i, a_int, a_tgt, k, mu):
     a_trans = (a_int + a_tgt) / 2
     tau_trans = math.pi * math.sqrt(a_trans**3 / mu)
     theta = omega_tgt * tau_trans - math.pi
+    if theta < 0:
+        theta = theta + math.pi
     relative_rate = omega_int - omega_tgt
     if relative_rate == 0:
         raise ValueError("the two orbits have no relative angular rate")
