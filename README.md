@@ -1,27 +1,45 @@
-# Space Situational Awareness (SSA)
+# Space Situational Awareness (SSA) — v1.0.1
 
-Python utilities for orbital mechanics calculations and regression checks based on examples from Vallado's *Fundamentals of Astrodynamics and Applications*.
+Python utilities for orbital mechanics, spacecraft maneuvers, two-body propagation, and visualizing example trajectories. Numerical examples and regression checks are based on Vallado's *Fundamentals of Astrodynamics and Applications*.
 
-## Modules
+## Features
 
-- `util.py` - canonical/SI unit conversions, elliptic/parabolic/hyperbolic Kepler solvers, anomaly conversions, state-vector/orbital-element conversions, two-body propagation, and time-of-flight calculations.
-- `util_maneuvers.py` - transfer orbits, plane changes, phasing, low-thrust transfers, and relative motion in Hill coordinates.
-- `util_propagate.py` - sampled two-body orbital propagation.
-- `plotter.py` - orbit plotting and 3D locus animation helpers.
-- `util_transformation.py` - vector transformations between orbital reference frames.
-- `test_util.py`, `test_maneuvers.py`, and `test_propagate.py` - regression checks for orbital utilities, maneuver calculations, and propagation/animation examples.
-- `ssa_gui.py` - a Tkinter interface for choosing the Util, Maneuvers, or Propagate test suite and running one test or the whole suite.
+- Convert between Earth canonical units and SI units.
+- Solve elliptic, parabolic, and hyperbolic Kepler equations; convert anomalies; convert between Cartesian state vectors and classical orbital elements; propagate two-body states; and calculate time of flight.
+- Calculate Hohmann, bi-elliptic, and one-tangent transfers; plane changes; circular-orbit phasing; low-thrust transfers; and relative motion in Hill coordinates.
+- Sample two-body trajectories with optional orbital orientation (inclination, RAAN, and argument of periapsis).
+- Plot and animate 3D trajectories, including an equatorial reference curve, spacecraft speed, and optional GIF export.
+- Run the Util, Maneuvers, and Propagate example suites from a Tkinter test runner, or preview an existing GIF in the runner.
+
+## Project modules
+
+- `util.py` — unit conversions, Kepler solvers, anomaly conversions, state-vector/orbital-element conversions, propagation, and time-of-flight calculations.
+- `util_maneuvers.py` — orbital transfer, plane change, phasing, low-thrust, arc-length, and Hill relative-motion calculations.
+- `util_transformation.py` — transformations among orbital reference frames.
+- `util_propagate.py` — sampled two-body orbital propagation.
+- `plotter.py` — 3D trajectory animation and GIF saving.
+- `test_util.py`, `test_maneuvers.py`, `test_propagate.py` — numerical examples and regression checks for the utilities, maneuvers, propagation, and animation.
+- `ssa_gui.py` — Tkinter test runner with suite/test selection, menu actions, output display, and GIF preview.
+
+## Requirements
+
+Python 3, NumPy, SciPy, Matplotlib, Pillow, and Tkinter are used by the project. Install the Python packages with:
+
+```bash
+python -m pip install numpy scipy matplotlib pillow pytest
+```
+
+Tkinter is included with many Python distributions; some Linux distributions package it separately.
 
 ## Units and conventions
 
-Angles are in radians unless stated otherwise. Keep distance and time units consistent with the gravitational parameter `mu`; for example, use kilometers, seconds, and km^3/s^2 together. Canonical unit conversions use Earth scales by default and can be configured with a radius and gravitational parameter.
+Angles are in radians unless stated otherwise. Keep distance and time units consistent with the gravitational parameter `mu`; for example, use kilometers, seconds, and km³/s² together. Canonical unit conversions use Earth scales by default and can be configured with a radius and gravitational parameter.
 
 ## Run the checks
 
-Install `pytest` if it is not already available, then run both suites from the project directory:
+From the project directory, run:
 
 ```bash
-python -m pip install pytest
 python -m pytest test_util.py test_maneuvers.py test_propagate.py
 ```
 
@@ -31,4 +49,4 @@ To open the interactive test runner:
 python ssa_gui.py
 ```
 
-Select **Util**, **Maneuvers**, or **Propagate** in the first dropdown, then choose an individual test or **All tests** in the second. The Propagate suite includes orbital propagation and 3D animation examples.
+Select **Util**, **Maneuvers**, or **Propagate** and then choose an individual test or **All tests**. The **Action** menu provides shortcuts for each suite and test. The Propagate suite includes transfer and plane-change trajectory animations; when running examples that save an animation, a file dialog lets you choose a GIF destination. Use **File → Open GIF…** or **Ctrl+O** to load a GIF into the **Preview** tab.
