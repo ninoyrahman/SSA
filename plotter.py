@@ -32,17 +32,27 @@ def animate_locus_3d(t, r, v, *, interval=30, show=True):
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection="3d")
-    low = np.min(r, axis=0)
-    high = np.max(r, axis=0)
-    center = (low + high) / 2
-    radius = max(float(np.max(high - low)) / 2, 1e-6) * 1.1
-    ax.set_xlim(center[0] - radius, center[0] + radius)
-    ax.set_ylim(center[1] - radius, center[1] + radius)
-    ax.set_zlim(center[2] - radius, center[2] + radius)
+    equatorial_radius = max(float(np.max(np.linalg.norm(r, axis=1))), 1e-6)
+    view_radius = max(float(np.max(np.abs(r))), equatorial_radius) * 1.1
+    ax.set_xlim(-view_radius, view_radius)
+    ax.set_ylim(-view_radius, view_radius)
+    ax.set_zlim(-view_radius, view_radius)
     ax.set_box_aspect((1, 1, 1))
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     ax.set_zlabel("z")
+
+    equatorial_angle = np.linspace(0.0, 2 * np.pi, 361)
+    equatorial_x = equatorial_radius * np.cos(equatorial_angle)
+    equatorial_y = equatorial_radius * np.sin(equatorial_angle)
+    ax.plot(
+        equatorial_x,
+        equatorial_y,
+        np.zeros_like(equatorial_angle),
+        color="red",
+        lw=1.5,
+        label="Equatorial geodesic (z=0)",
+    )
 
     line, = ax.plot([], [], [], lw=2, label="Trajectory")
     point, = ax.plot([], [], [], "ro", markersize=6, label="Spacecraft")

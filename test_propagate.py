@@ -10,11 +10,112 @@ matplotlib.use("Agg")
 
 from util_propagate import propagate
 from plotter import animate_locus_3d
-from util_maneuvers import bi_elliptic_transfer, hohmann_transfer
+from util_maneuvers import (
+    bi_elliptic_transfer,
+    combined_inclination_raan_change,
+    hohmann_transfer,
+    inclination_only,
+)
 
 
 def test_propagate_and_animate_locus_3d():
     t, r, v = propagate(100, 0, 19.743, 0, 1, 0, 1.03136)
+    _, _, animation = animate_locus_3d(t, r, v, show=False)
+    assert animation is not None
+
+
+def test_leo_inclination_change_node_to_node():
+    """Propagate one LEO revolution, change inclination at the ascending node,
+    then propagate another revolution to the ascending node.
+    """
+    earth_radius_km = 6378.137
+    mu = 1.0  # Earth canonical units
+    radius = (earth_radius_km + 200.0) / earth_radius_km
+    inclination_initial = math.radians(20.0)
+    delta_i = math.radians(5.0)
+    inclination_final = inclination_initial + delta_i
+    speed = math.sqrt(mu / radius)
+    period = 2 * math.pi * math.sqrt(radius**3 / mu)
+
+    N = 100
+    t_before, r_before, v_before = propagate(
+        N, 0.0, period, 0.0, mu, 0.0, radius,
+        inclination=inclination_initial,
+    )
+
+    # At the ascending node, rotate the velocity within the local plane by
+    # 5 degrees; the burn leaves the circular speed unchanged.
+    delta_v = inclination_only(delta_i, 0.0, speed)
+    t_after_relative, r_after, v_after = propagate(
+        N, 0.0, period, 0.0, mu, 0.0, radius,
+        inclination=inclination_final,
+    )
+    assert np.linalg.norm(v_after[0] - v_before[-1]) == pytest.approx(delta_v)
+    t_after = t_after_relative + t_before[-1]
+
+    # Omit the repeated ascending-node sample where the two orbit segments join.
+    t = np.concatenate((t_before, t_after[1:]))
+    r = np.concatenate((r_before, r_after[1:]))
+    v = np.concatenate((v_before, v_after[1:]))
+    _, _, animation = animate_locus_3d(t, r, v, show=False)
+    assert animation is not None
+
+
+def test_leo_combined_inclination_raan_change_node_to_node():
+    """Animate one revolution on each side of a combined plane change."""
+    earth_radius_km = 6378.137
+    mu = 1.0  # Earth canonical units
+    radius = (earth_radius_km + 200.0) / earth_radius_km
+    inclination_initial = math.radians(55.0)
+    raan_initial = 0.0
+    inclination_final = math.radians(40.0)
+    raan_final = math.radians(45.0)
+    delta_raan = raan_final - raan_initial
+    speed = math.sqrt(mu / radius)
+
+    delta_v, theta = combined_inclination_raan_change(
+        inclination_initial, inclination_final, delta_raan, speed
+    )
+
+    # Eqs. 6.25 and 6.26 give cos(u_i) and cos(u_f); use their positive
+    # arccos branches, which describe the same common position in both planes.
+    cos_u_initial = (
+        math.sin(inclination_final) * math.cos(delta_raan)
+        - math.cos(theta) * math.sin(inclination_initial)
+    ) / (math.sin(theta) * math.cos(inclination_initial))
+    cos_u_final = (
+        math.cos(inclination_initial) * math.sin(inclination_final)
+        - math.sin(inclination_initial) * math.cos(inclination_final)
+        * math.cos(delta_raan)
+    ) / math.sin(theta)
+    u_initial = math.acos(max(-1.0, min(1.0, cos_u_initial)))
+    u_final = math.acos(max(-1.0, min(1.0, cos_u_final)))
+
+    period = 2 * math.pi * math.sqrt(radius**3 / mu)
+    N = 100
+
+    t_initial, r_initial, v_initial = propagate(
+        N, 0.0, period, u_initial, mu, 0.0, radius,
+        inclination=inclination_initial,
+        raan=raan_initial,
+    )
+
+    t_final_relative, r_final, v_final = propagate(
+        N, 0.0, period, u_final, mu, 0.0, radius,
+        inclination=inclination_final,
+        raan=raan_final,
+    )
+    t_final = t_final_relative + t_initial[-1]
+
+    # Both propagated arcs meet at the common point. The velocity-vector jump
+    # there must match the combined plane-change maneuver calculation.
+    assert r_initial[-1] == pytest.approx(r_final[0], abs=1e-10)
+    assert np.linalg.norm(v_final[0] - v_initial[-1]) == pytest.approx(delta_v)
+
+    # Omit the duplicated maneuver point in the rendered locus.
+    t = np.concatenate((t_initial, t_final[1:]))
+    r = np.concatenate((r_initial, r_final[1:]))
+    v = np.concatenate((v_initial, v_final[1:]))
     _, _, animation = animate_locus_3d(t, r, v, show=False)
     assert animation is not None
 
@@ -145,3 +246,4 @@ def run_all_tests():
 
 if __name__ == "__main__":
     run_all_tests()
+    # test_leo_combined_inclination_raan_change_node_to_node()
