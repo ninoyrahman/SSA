@@ -224,6 +224,7 @@ class TestGUI:
             self._write_output(f"  Result: {result}\n")
 
     def run_named_test(self, suite, test_name):
+        self.output_tabs.select(0)
         self.suite_selection.set(suite)
         self.test_selection.set(test_name)
         self.run_test()

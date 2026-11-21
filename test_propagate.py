@@ -75,6 +75,7 @@ from util_maneuvers import (
     payload_angle,
     circular_coplanar_phasing_same_orbit,
     circular_coplanar_phasing_different_orbits,
+    noncoplanar_phasing,
 )
 
 
@@ -250,6 +251,109 @@ def test_rendezvous_different_orbits(root=None):
     t = np.concatenate((t_wait, t_transfer[1:]))
     r = np.concatenate((r_wait, r_transfer[1:]))
     v = np.concatenate((v_wait, v_transfer[1:]))
+    _, _, animation = animate_locus_3d(t, r, v, show=False)
+
+
+def test_noncoplanar_phasing(root=None):
+    """Animate noncoplanar phasing from a circular orbit to an equatorial target."""
+    owns_root = root is None
+    if owns_root:
+        root = tk.Tk()
+        root.withdraw()
+    fields = (
+        ("Target altitude above Earth's surface (km):", "35786", 0.0, None),
+        ("Interceptor altitude above Earth's surface (km):", "800", 0.0, None),
+        ("Interceptor inclination (degrees):", "28.5", 0.0, 180.0),
+        ("Interceptor RAAN (degrees):", "45", -360.0, 360.0),
+        ("Interceptor argument of latitude u (degrees):", "15", -360.0, 360.0),
+        ("Target initial longitude (degrees):", "200", -360.0, 360.0),
+        ("Target revolutions k_tgt:", "0", 0.0, None),
+        ("Interceptor phasing revolutions k_int:", "1", 1.0, None),
+    )
+    try:
+        inputs = _ask_numeric_fields(root, "Circular noncoplanar phasing", fields)
+    finally:
+        if owns_root:
+            root.destroy()
+    if inputs is None:
+        pytest.skip("Noncoplanar phasing inputs were not entered")
+    (target_altitude_km, interceptor_altitude_km, inclination_deg,
+     raan_deg, u_deg, target_longitude_deg, k_tgt_input, k_int_input) = inputs
+    if not k_tgt_input.is_integer() or not k_int_input.is_integer():
+        raise ValueError("k_tgt and k_int must be whole numbers")
+    if interceptor_altitude_km >= target_altitude_km:
+        raise ValueError("Interceptor altitude must be below target altitude")
+
+    mu = 1.0  # Earth canonical units
+    a_tgt = (EARTH_RADIUS_KM + target_altitude_km) / EARTH_RADIUS_KM
+    a_int = (EARTH_RADIUS_KM + interceptor_altitude_km) / EARTH_RADIUS_KM
+    inclination = math.radians(inclination_deg)
+    raan = math.radians(raan_deg)
+    u_int = math.radians(u_deg)
+    lambda_true0 = math.radians(target_longitude_deg)
+    k_tgt, k_int = int(k_tgt_input), int(k_int_input)
+
+    # Calculate the interceptor's actual inertial longitude at the epoch,
+    # including its inclination, then measure its phase from the target.
+    x = math.cos(raan) * math.cos(u_int) - math.sin(raan) * math.sin(u_int) * math.cos(inclination)
+    y = math.sin(raan) * math.cos(u_int) + math.cos(raan) * math.sin(u_int) * math.cos(inclination)
+    interceptor_longitude0 = math.atan2(y, x)
+    theta_i = (interceptor_longitude0 - lambda_true0 + math.pi) % (2 * math.pi) - math.pi
+
+    (tau_trans, tau_phase, dv_phase, dv_trans1, dv_trans2, a_phase,
+     _tau_total) = noncoplanar_phasing(
+        theta_i, a_int, a_tgt, k_tgt, u_int, raan, lambda_true0,
+        inclination, mu, k_int=k_int,
+    )
+
+    # Coast to the next node, as in the diagram. The phasing ellipse starts at
+    # that node and completes k_int revolutions before the transfer burn.
+    node_offsets = ((-u_int) % (2 * math.pi), (math.pi - u_int) % (2 * math.pi))
+    node_index = min(range(2), key=node_offsets.__getitem__)
+    node_u = (0.0, math.pi)[node_index]
+    tau_node = node_offsets[node_index] / math.sqrt(mu / a_int**3)
+    longitude_node = (raan + node_u) % (2 * math.pi)
+
+    e_phase = abs(a_int / a_phase - 1.0)
+    if a_phase >= a_int:
+        nu_phase0, argp_phase = 0.0, node_u
+    else:
+        nu_phase0, argp_phase = math.pi, (node_u - math.pi) % (2 * math.pi)
+    p_phase = a_phase * (1.0 - e_phase**2)
+
+    e_trans = (a_tgt - a_int) / (a_tgt + a_int)
+    a_trans = (a_tgt + a_int) / 2.0
+    p_trans = a_trans * (1.0 - e_trans**2)
+    total_time = tau_node + tau_phase + tau_trans
+    total_samples = 200
+    wait_samples = int(total_samples * tau_node / total_time)
+    phase_samples = int(total_samples * tau_phase / total_time)
+    transfer_samples = total_samples - wait_samples - phase_samples
+
+    t_wait, r_wait, v_wait = propagate(
+        wait_samples, 0.0, tau_node, u_int, mu, 0.0, a_int,
+        inclination=inclination, raan=raan,
+    )
+    t_phase_rel, r_phase, v_phase = propagate(
+        phase_samples, 0.0, tau_phase, nu_phase0, mu, e_phase, p_phase,
+        inclination=inclination, raan=raan, argp=argp_phase,
+    )
+    t_phase = t_phase_rel + tau_node
+    t_transfer_rel, r_transfer, v_transfer = propagate(
+        transfer_samples, 0.0, tau_trans, 0.0, mu, e_trans, p_trans,
+        inclination=0.0, raan=0.0, argp=longitude_node,
+    )
+    t_transfer = t_transfer_rel + tau_node + tau_phase
+
+    print(f"Node coast: {tau_node * TIME_UNIT_S:.3f} s")
+    print(f"Phasing time: {tau_phase * TIME_UNIT_S:.3f} s")
+    print(f"Transfer time: {tau_trans * TIME_UNIT_S:.3f} s")
+    print(f"Phasing orbit semi-major axis: {a_phase:.6f} Earth radii")
+    print(f"Total delta-v: {(dv_phase + dv_trans1 + dv_trans2) * VELOCITY_UNIT_M_S:.3f} m/s")
+
+    t = np.concatenate((t_wait, t_phase[1:], t_transfer[1:]))
+    r = np.concatenate((r_wait, r_phase[1:], r_transfer[1:]))
+    v = np.concatenate((v_wait, v_phase[1:], v_transfer[1:]))
     _, _, animation = animate_locus_3d(t, r, v, show=False)
 
 
