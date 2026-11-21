@@ -73,6 +73,8 @@ from util_maneuvers import (
     inclination_only,
     minimum_combined_plane_change,
     payload_angle,
+    circular_coplanar_phasing_same_orbit,
+    circular_coplanar_phasing_different_orbits,
 )
 
 
@@ -118,6 +120,136 @@ def test_propagate(root=None):
         200, 0.0, final_time, 0.0, mu, eccentricity, p,
         inclination=inclination, raan=raan, argp=argp,
     )
+    _, _, animation = animate_locus_3d(t, r, v, show=False)
+
+
+def test_rendezvous_same_orbit(root=None):
+    """Prompt for inputs and animate a same-orbit rendezvous."""
+    owns_root = root is None
+    if owns_root:
+        root = tk.Tk()
+        root.withdraw()
+    fields = (
+        ("Target/interceptor altitude above Earth's surface (km):", "200", 0.0, None),
+        ("Angle from target to interceptor (degrees):", "-20", -360.0, 360.0),
+        ("Interceptor phasing revolutions (k_int):", "1", 1.0, None),
+        ("Target revolutions (k_tgt):", "1", 0.0, None),
+    )
+    try:
+        inputs = _ask_numeric_fields(root, "Same-orbit rendezvous", fields)
+    finally:
+        if owns_root:
+            root.destroy()
+    if inputs is None:
+        pytest.skip("Rendezvous inputs were not entered")
+    altitude_km, theta_deg, k_int_input, k_tgt_input = inputs
+    if not k_int_input.is_integer() or not k_tgt_input.is_integer():
+        raise ValueError("k_int and k_tgt must be whole numbers")
+    k_int, k_tgt = int(k_int_input), int(k_tgt_input)
+    a_tgt = (EARTH_RADIUS_KM + altitude_km) / EARTH_RADIUS_KM
+
+    mu = 1.0
+    theta = math.radians(theta_deg)
+    phase_time, delta_v, a_phase = circular_coplanar_phasing_same_orbit(
+        a_tgt, theta, k_tgt, k_int, mu
+    )
+    phase_period = 2 * math.pi * math.sqrt(a_phase**3 / mu)
+    interceptor_phase_time = k_int * phase_period
+    target_period = 2 * math.pi * math.sqrt(a_tgt**3 / mu)
+
+    print(f"Phasing time: {phase_time * TIME_UNIT_S:.3f} s")
+    print(f"Phasing orbit semi-major axis: {a_phase:.6f} Earth radii")
+    print(f"Interceptor impulse velocity change: {delta_v * VELOCITY_UNIT_M_S:.3f} m/s")
+
+    # The target starts at the negative entered angle relative to the
+    # interceptor. Sampling its
+    # one-revolution path also establishes the rendezvous point at phase_time.
+    n_samples = max(120, int(240 * phase_time / target_period))
+    t_target, r_target, v_target = propagate(
+        n_samples, 0.0, phase_time, -theta, mu, 0.0, a_tgt
+    )
+    # The first burn is tangential at the original circular radius. Depending
+    # on the phasing semi-major axis, that point is periapsis or apoapsis.
+    eccentricity = abs(a_tgt / a_phase - 1.0)
+    nu0 = 0.0 if a_phase >= a_tgt else math.pi
+    argp = 0.0 if nu0 == 0.0 else math.pi
+    p_phase = a_phase * (1.0 - eccentricity**2)
+    _, r_int, v_int = propagate(
+        n_samples, 0.0, interceptor_phase_time, nu0, mu, eccentricity, p_phase,
+        argp=argp,
+    )
+    # Both paths share the same rendezvous point. Animate the target's full
+    # revolution followed by the interceptor's phasing trajectory.
+    t = np.concatenate((t_target, t_target[-1] + t_target[1:]))
+    r = np.concatenate((r_target, r_int[1:]))
+    v = np.concatenate((v_target, v_int[1:]))
+    _, _, animation = animate_locus_3d(t, r, v, show=False)
+
+
+def test_rendezvous_different_orbits(root=None):
+    """Animate a rendezvous from a lower circular orbit to a higher one."""
+    owns_root = root is None
+    if owns_root:
+        root = tk.Tk()
+        root.withdraw()
+    fields = (
+        ("Target altitude above Earth's surface (km):", "35786", 0.0, None),
+        ("Interceptor altitude above Earth's surface (km):", "6400", 0.0, None),
+        ("Angle from target to interceptor (degrees):", "20", -360.0, 360.0),
+        ("Interceptor initial-orbit revolutions (k):", "1", 0.0, None),
+    )
+    try:
+        inputs = _ask_numeric_fields(root, "Different-orbit rendezvous", fields)
+    finally:
+        if owns_root:
+            root.destroy()
+    if inputs is None:
+        pytest.skip("Rendezvous inputs were not entered")
+    target_altitude_km, interceptor_altitude_km, theta_deg, k_input = inputs
+    if not k_input.is_integer():
+        raise ValueError("k must be a whole number")
+    if interceptor_altitude_km >= target_altitude_km:
+        raise ValueError("Interceptor altitude must be below target altitude")
+
+    mu = 1.0  # Earth canonical units
+    a_tgt = (EARTH_RADIUS_KM + target_altitude_km) / EARTH_RADIUS_KM
+    a_int = (EARTH_RADIUS_KM + interceptor_altitude_km) / EARTH_RADIUS_KM
+    theta_i = math.radians(theta_deg)
+    tau_trans, delta_v, a_trans, tau_wait = (
+        circular_coplanar_phasing_different_orbits(
+            theta_i, a_int, a_tgt, int(k_input), mu
+        )
+    )
+    if tau_wait < 0:
+        raise ValueError("Selected k produces a negative wait time; increase k")
+
+    e_trans = (a_tgt - a_int) / (a_tgt + a_int)
+    p_trans = a_trans * (1.0 - e_trans**2)
+    period_int = 2 * math.pi * math.sqrt(a_int**3 / mu)
+    total_time = tau_wait + tau_trans
+    samples = 100 * (1 + tau_wait / tau_trans)
+    wait_samples = int(samples * tau_wait / total_time)
+    transfer_samples = int(samples * tau_trans / total_time)
+
+    # The target starts at angle zero; the interceptor begins theta_i radians
+    # ahead of it and coasts for tau_wait before the pericenter burn.
+    t_wait, r_wait, v_wait = propagate(
+        wait_samples, 0.0, tau_wait, theta_i, mu, 0.0, a_int
+    )
+    interceptor_angle_at_burn = theta_i + math.sqrt(mu / a_int**3) * tau_wait
+    t_transfer, r_transfer, v_transfer = propagate(
+        transfer_samples, tau_wait, total_time, 0.0, mu, e_trans, p_trans,
+        argp=interceptor_angle_at_burn,
+    )
+
+    print(f"Wait time: {tau_wait * TIME_UNIT_S:.3f} s")
+    print(f"Transfer time: {tau_trans * TIME_UNIT_S:.3f} s")
+    print(f"Transfer semi-major axis: {a_trans:.6f} Earth radii")
+    print(f"Total delta-v: {delta_v * VELOCITY_UNIT_M_S:.3f} m/s")
+
+    t = np.concatenate((t_wait, t_transfer[1:]))
+    r = np.concatenate((r_wait, r_transfer[1:]))
+    v = np.concatenate((v_wait, v_transfer[1:]))
     _, _, animation = animate_locus_3d(t, r, v, show=False)
 
 
