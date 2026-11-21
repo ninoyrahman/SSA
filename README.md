@@ -1,4 +1,4 @@
-# Space Situational Awareness (SSA) — v1.0.1
+# Space Situational Awareness (SSA) — v1.1.0
 
 Python utilities for orbital mechanics, spacecraft maneuvers, two-body propagation, and visualizing example trajectories. Numerical examples and regression checks are based on Vallado's *Fundamentals of Astrodynamics and Applications*.
 
@@ -6,9 +6,10 @@ Python utilities for orbital mechanics, spacecraft maneuvers, two-body propagati
 
 - Convert between Earth canonical units and SI units.
 - Solve elliptic, parabolic, and hyperbolic Kepler equations; convert anomalies; convert between Cartesian state vectors and classical orbital elements; propagate two-body states; and calculate time of flight.
-- Calculate Hohmann, bi-elliptic, and one-tangent transfers; plane changes; circular-orbit phasing; low-thrust transfers; and relative motion in Hill coordinates.
+- Calculate Hohmann, bi-elliptic, and one-tangent transfers; plane changes including minimum-cost combined plane changes; circular-orbit phasing; low-thrust transfers; and relative motion in Hill coordinates.
 - Sample two-body trajectories with optional orbital orientation (inclination, RAAN, and argument of periapsis).
 - Plot and animate 3D trajectories, including an equatorial reference curve, spacecraft speed, and optional GIF export.
+- Explore interactive propagation examples for inclined orbits, combined inclination and RAAN changes, Hohmann and bi-elliptic transfers, and minimum-cost plane changes.
 - Run the Util, Maneuvers, and Propagate example suites from a Tkinter test runner, or preview an existing GIF in the runner.
 
 ## Project modules
@@ -16,7 +17,7 @@ Python utilities for orbital mechanics, spacecraft maneuvers, two-body propagati
 - `util.py` — unit conversions, Kepler solvers, anomaly conversions, state-vector/orbital-element conversions, propagation, and time-of-flight calculations.
 - `util_maneuvers.py` — orbital transfer, plane change, phasing, low-thrust, arc-length, and Hill relative-motion calculations.
 - `util_transformation.py` — transformations among orbital reference frames.
-- `util_propagate.py` — sampled two-body orbital propagation.
+- `util_propagate.py` — sampled two-body orbital propagation with optional orbital orientation.
 - `plotter.py` — 3D trajectory animation and GIF saving.
 - `test_util.py`, `test_maneuvers.py`, `test_propagate.py` — numerical examples and regression checks for the utilities, maneuvers, propagation, and animation.
 - `ssa_gui.py` — Tkinter test runner with suite/test selection, menu actions, output display, and GIF preview.
