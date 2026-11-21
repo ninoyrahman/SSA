@@ -10,6 +10,23 @@ from util_transformation import (
 )
 
 
+def payload_angle(v_before, v_after, delta_v):
+    """Return the angle in degrees between the incoming velocity and impulse.
+
+    The three magnitudes must use consistent units. Returns ``None`` when the
+    impulse is zero because its direction, and therefore the angle, is
+    undefined.
+    """
+    if (not all(math.isfinite(value) for value in
+                (v_before, v_after, delta_v))
+            or v_before < 0 or v_after < 0 or delta_v < 0):
+        raise ValueError("velocity magnitudes must be finite and nonnegative")
+    if delta_v == 0:
+        return None
+    cosine = (v_before**2 + delta_v**2 - v_after**2) / (2 * v_before * delta_v)
+    return math.degrees(math.acos(max(-1.0, min(1.0, cosine))))
+
+
 def arc_integral(p, eccentricity, nu_start, nu_end, *, epsabs=1.49e-8,
                  epsrel=1.49e-8, limit=100):
     """Compute signed orbital arc length between two true anomalies.

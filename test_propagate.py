@@ -6,7 +6,7 @@ import matplotlib
 import numpy as np
 import pytest
 import tkinter as tk
-from tkinter import simpledialog
+from tkinter import messagebox, ttk
 
 matplotlib.use("Agg")
 
@@ -16,6 +16,54 @@ DISTANCE_UNIT_M = EARTH_RADIUS_KM * 1000.0
 TIME_UNIT_S = math.sqrt(DISTANCE_UNIT_M**3 / MU_EARTH_SI)
 VELOCITY_UNIT_M_S = DISTANCE_UNIT_M / TIME_UNIT_S
 
+
+def _ask_numeric_fields(root, title, fields):
+    dialog = tk.Toplevel(root)
+    dialog.title(title)
+    dialog.transient(root)
+    dialog.resizable(False, False)
+
+    entries = []
+    for row, (label, default, _minimum, _maximum) in enumerate(fields):
+        ttk.Label(dialog, text=label).grid(
+            row=row, column=0, padx=(12, 8), pady=5, sticky="w"
+        )
+        entry = ttk.Entry(dialog, width=18)
+        entry.insert(0, default)
+        entry.grid(row=row, column=1, padx=(0, 12), pady=5, sticky="ew")
+        entries.append(entry)
+
+    values = {"result": None}
+
+    def submit():
+        parsed = []
+        try:
+            for entry, (label, _default, minimum, maximum) in zip(entries, fields):
+                value = float(entry.get())
+                if not math.isfinite(value):
+                    raise ValueError(f"{label} must be a finite number")
+                if value < minimum or (maximum is not None and value > maximum):
+                    raise ValueError(f"{label} is outside the allowed range")
+                parsed.append(value)
+        except ValueError as exc:
+            messagebox.showerror("Invalid orbital input", str(exc), parent=dialog)
+            return
+        values["result"] = parsed
+        dialog.destroy()
+
+    buttons = ttk.Frame(dialog)
+    buttons.grid(row=len(fields), column=0, columnspan=2, pady=(8, 12))
+    ttk.Button(buttons, text="OK", command=submit).pack(side=tk.LEFT, padx=5)
+    ttk.Button(buttons, text="Cancel", command=dialog.destroy).pack(
+        side=tk.LEFT, padx=5
+    )
+    dialog.bind("<Return>", lambda _event: submit())
+    dialog.bind("<Escape>", lambda _event: dialog.destroy())
+    entries[0].focus_set()
+    dialog.grab_set()
+    root.wait_window(dialog)
+    return values["result"]
+
 from util_propagate import propagate
 from plotter import animate_locus_3d
 from util_maneuvers import (
@@ -24,6 +72,7 @@ from util_maneuvers import (
     hohmann_transfer,
     inclination_only,
     minimum_combined_plane_change,
+    payload_angle,
 )
 
 
@@ -32,33 +81,21 @@ def test_propagate(root=None):
     if owns_root:
         root = tk.Tk()
         root.withdraw()
+    fields = (
+        ("Periapsis altitude above Earth's surface (km):", "200", 0.0, None),
+        ("Eccentricity (0 <= e < 1):", "0", 0.0, 0.999999999),
+        ("Inclination (degrees):", "0", 0.0, 180.0),
+        ("RAAN (degrees):", "0", -360.0, 360.0),
+        ("Argument of periapsis (degrees):", "0", -360.0, 360.0),
+    )
     try:
-        altitude_km = simpledialog.askfloat(
-            "Orbit propagation", "Periapsis altitude above Earth's surface (km):",
-            minvalue=0.0, parent=root,
-        )
-        eccentricity = simpledialog.askfloat(
-            "Orbit propagation", "Eccentricity (0 <= e < 1):",
-            minvalue=0.0, maxvalue=0.999999999, parent=root,
-        )
-        inclination_deg = simpledialog.askfloat(
-            "Orbit propagation", "Inclination (degrees):",
-            minvalue=0.0, maxvalue=180.0, parent=root,
-        )
-        raan_deg = simpledialog.askfloat(
-            "Orbit propagation", "RAAN (degrees):",
-            minvalue=-360.0, maxvalue=360.0, parent=root,
-        )
-        argp_deg = simpledialog.askfloat(
-            "Orbit propagation", "Argument of periapsis (degrees):",
-            minvalue=-360.0, maxvalue=360.0, parent=root,
-        )
+        inputs = _ask_numeric_fields(root, "Orbit propagation", fields)
     finally:
         if owns_root:
             root.destroy()
-    inputs = (altitude_km, eccentricity, inclination_deg, raan_deg, argp_deg)
-    if any(value is None for value in inputs):
+    if inputs is None:
         pytest.skip("All orbital elements were not entered")
+    altitude_km, eccentricity, inclination_deg, raan_deg, argp_deg = inputs
 
     mu = 1.0  # Earth canonical units
     periapsis_radius = (EARTH_RADIUS_KM + altitude_km) / EARTH_RADIUS_KM
@@ -92,25 +129,19 @@ def test_inclination_change(root=None):
     if owns_root:
         root = tk.Tk()
         root.withdraw()
+    fields = (
+        ("Orbit altitude above Earth's surface (km):", "200", 0.0, None),
+        ("Initial inclination (degrees):", "20", 0.0, 180.0),
+        ("Final inclination (degrees):", "25", 0.0, 180.0),
+    )
     try:
-        altitude_km = simpledialog.askfloat(
-            "Inclination change", "Orbit altitude above Earth's surface (km):",
-            minvalue=0.0, parent=root,
-        )
-        initial_inclination_deg = simpledialog.askfloat(
-            "Inclination change", "Initial inclination (degrees):",
-            minvalue=0.0, maxvalue=180.0, parent=root,
-        )
-        final_inclination_deg = simpledialog.askfloat(
-            "Inclination change", "Final inclination (degrees):",
-            minvalue=0.0, maxvalue=180.0, parent=root,
-        )
+        inputs = _ask_numeric_fields(root, "Inclination change", fields)
     finally:
         if owns_root:
             root.destroy()
-    if (altitude_km is None or initial_inclination_deg is None
-            or final_inclination_deg is None):
+    if inputs is None:
         pytest.skip("Orbit altitude and inclinations were not entered")
+    altitude_km, initial_inclination_deg, final_inclination_deg = inputs
 
     mu = 1.0  # Earth canonical units
     radius = (EARTH_RADIUS_KM + altitude_km) / EARTH_RADIUS_KM
@@ -149,34 +180,22 @@ def test_combined_inclination_raan_change(root=None):
     if owns_root:
         root = tk.Tk()
         root.withdraw()
+    fields = (
+        ("Orbit altitude above Earth's surface (km):", "200", 0.0, None),
+        ("Initial inclination (degrees):", "20", 0.0, 180.0),
+        ("Final inclination (degrees):", "25", 0.0, 180.0),
+        ("Initial RAAN (degrees):", "0", -360.0, 360.0),
+        ("Final RAAN (degrees):", "30", -360.0, 360.0),
+    )
     try:
-        altitude_km = simpledialog.askfloat(
-            "Combined plane change", "Orbit altitude above Earth's surface (km):",
-            minvalue=0.0, parent=root,
-        )
-        initial_inclination_deg = simpledialog.askfloat(
-            "Combined plane change", "Initial inclination (degrees):",
-            minvalue=0.0, maxvalue=180.0, parent=root,
-        )
-        final_inclination_deg = simpledialog.askfloat(
-            "Combined plane change", "Final inclination (degrees):",
-            minvalue=0.0, maxvalue=180.0, parent=root,
-        )
-        initial_raan_deg = simpledialog.askfloat(
-            "Combined plane change", "Initial RAAN (degrees):",
-            minvalue=-360.0, maxvalue=360.0, parent=root,
-        )
-        final_raan_deg = simpledialog.askfloat(
-            "Combined plane change", "Final RAAN (degrees):",
-            minvalue=-360.0, maxvalue=360.0, parent=root,
-        )
+        inputs = _ask_numeric_fields(root, "Combined plane change", fields)
     finally:
         if owns_root:
             root.destroy()
-    inputs = (altitude_km, initial_inclination_deg, final_inclination_deg,
-              initial_raan_deg, final_raan_deg)
-    if any(value is None for value in inputs):
+    if inputs is None:
         pytest.skip("Altitude and plane angles were not entered")
+    (altitude_km, initial_inclination_deg, final_inclination_deg,
+     initial_raan_deg, final_raan_deg) = inputs
 
     mu = 1.0  # Earth canonical units
     radius = (EARTH_RADIUS_KM + altitude_km) / EARTH_RADIUS_KM
@@ -239,20 +258,18 @@ def test_hohmann_transfer(root=None):
     if owns_root:
         root = tk.Tk()
         root.withdraw()
+    fields = (
+        ("Initial altitude above Earth's surface (km):", "200", 0.0, None),
+        ("Final altitude above Earth's surface (km):", "35786", 0.0, None),
+    )
     try:
-        leo_altitude_km = simpledialog.askfloat(
-            "Hohmann transfer", "Initial altitude above Earth's surface (km):",
-            minvalue=0.0, parent=root,
-        )
-        geo_altitude_km = simpledialog.askfloat(
-            "Hohmann transfer", "Final altitude above Earth's surface (km):",
-            minvalue=0.0, parent=root,
-        )
+        inputs = _ask_numeric_fields(root, "Hohmann transfer", fields)
     finally:
         if owns_root:
             root.destroy()
-    if leo_altitude_km is None or geo_altitude_km is None:
+    if inputs is None:
         pytest.skip("Orbit altitudes were not entered")
+    leo_altitude_km, geo_altitude_km = inputs
     # Convert altitudes above Earth's surface to geocentric radii in canonical
     # Earth-radius units for propagation and maneuver calculations.
     r_leo = (EARTH_RADIUS_KM + leo_altitude_km) / EARTH_RADIUS_KM
@@ -300,20 +317,18 @@ def test_bi_elliptic_transfer(root=None):
     if owns_root:
         root = tk.Tk()
         root.withdraw()
+    fields = (
+        ("Initial altitude above Earth's surface (km):", "200", 0.0, None),
+        ("Final altitude above Earth's surface (km):", "35786", 0.0, None),
+    )
     try:
-        leo_altitude_km = simpledialog.askfloat(
-            "Bi-elliptic transfer", "Initial altitude above Earth's surface (km):",
-            minvalue=0.0, parent=root,
-        )
-        geo_altitude_km = simpledialog.askfloat(
-            "Bi-elliptic transfer", "Final altitude above Earth's surface (km):",
-            minvalue=0.0, parent=root,
-        )
+        inputs = _ask_numeric_fields(root, "Bi-elliptic transfer", fields)
     finally:
         if owns_root:
             root.destroy()
-    if leo_altitude_km is None or geo_altitude_km is None:
+    if inputs is None:
         pytest.skip("Orbit altitudes were not entered")
+    leo_altitude_km, geo_altitude_km = inputs
 
     r_leo = (EARTH_RADIUS_KM + leo_altitude_km) / EARTH_RADIUS_KM
     r_geo = (EARTH_RADIUS_KM + geo_altitude_km) / EARTH_RADIUS_KM
@@ -371,45 +386,34 @@ def test_bi_elliptic_transfer(root=None):
 
 
 def test_minimum_plane_change(root=None):
-    """Animate three one-revolution orbit arcs with a two-burn plane change.
-
-    The burn magnitudes and inclination split use the minimum combined
-    plane-change estimate for a Hohmann transfer. The displayed arcs are
-    circular-orbit locus segments, with the intermediate plane inclination
-    applied after the first burn.
-    """
+    """Animate a two-burn minimum-cost plane change over a Hohmann transfer."""
     owns_root = root is None
     if owns_root:
         root = tk.Tk()
         root.withdraw()
+    fields = (
+        ("Initial altitude above Earth's surface (km):", "200", 0.0, None),
+        ("Final altitude above Earth's surface (km):", "35786", 0.0, None),
+        ("Initial inclination (degrees):", "20", 0.0, 180.0),
+        ("Final inclination (degrees):", "25", 0.0, 180.0),
+    )
     try:
-        initial_altitude_km = simpledialog.askfloat(
-            "Minimum plane change", "Initial altitude above Earth's surface (km):",
-            minvalue=0.0, parent=root,
-        )
-        final_altitude_km = simpledialog.askfloat(
-            "Minimum plane change", "Final altitude above Earth's surface (km):",
-            minvalue=0.0, parent=root,
-        )
-        initial_inclination_deg = simpledialog.askfloat(
-            "Minimum plane change", "Initial inclination (degrees):",
-            minvalue=0.0, maxvalue=180.0, parent=root,
-        )
-        final_inclination_deg = simpledialog.askfloat(
-            "Minimum plane change", "Final inclination (degrees):",
-            minvalue=0.0, maxvalue=180.0, parent=root,
-        )
+        inputs = _ask_numeric_fields(root, "Minimum plane change", fields)
     finally:
         if owns_root:
             root.destroy()
+    if inputs is None:
+        pytest.skip("Altitudes and inclinations were not entered")
+    (initial_altitude_km, final_altitude_km,
+     initial_inclination_deg, final_inclination_deg) = inputs
     values = (initial_altitude_km, final_altitude_km,
               initial_inclination_deg, final_inclination_deg)
-    if any(value is None for value in values):
-        pytest.skip("Altitudes and inclinations were not entered")
     if not all(math.isfinite(value) for value in values):
         raise ValueError("altitudes and inclinations must be finite")
     if initial_altitude_km < 0 or final_altitude_km < 0:
         raise ValueError("altitudes must be nonnegative")
+    if final_altitude_km < initial_altitude_km:
+        raise ValueError("final altitude must be at least the initial altitude")
     if not (0 <= initial_inclination_deg <= 180
             and 0 <= final_inclination_deg <= 180):
         raise ValueError("inclinations must be between 0 and 180 degrees")
@@ -431,34 +435,50 @@ def test_minimum_plane_change(root=None):
                         else -1)
     inclination_mid = math.radians(initial_inclination_deg) + inclination_sign * delta_i_1
 
+    transfer_time = math.pi * math.sqrt(a_transfer**3 / mu)
+    e_transfer = (r_final - r_initial) / (r_final + r_initial)
+    p_transfer = a_transfer * (1 - e_transfer**2)
+
+    gamma_peri = payload_angle(v_initial, v_trans_a, delta_v_1)
+    gamma_apo = payload_angle(v_trans_b, v_final, delta_v_2)
+
+    print(f"Transfer time: {transfer_time * TIME_UNIT_S:.3f} s")
+    peri_angle = "undefined (zero impulse)" if gamma_peri is None else f"{gamma_peri:.3f} degrees"
+    apo_angle = "undefined (zero impulse)" if gamma_apo is None else f"{gamma_apo:.3f} degrees"
+    print(f"Payload angle at transfer pericenter: {peri_angle}")
+    print(f"Payload angle at transfer apocenter: {apo_angle}")
     print(f"First inclination change: {inclination_sign * math.degrees(delta_i_1):.3f} degrees")
     print(f"Second inclination change: {inclination_sign * math.degrees(delta_i_2):.3f} degrees")
     print(f"First velocity change: {delta_v_1 * VELOCITY_UNIT_M_S:.3f} m/s")
     print(f"Second velocity change: {delta_v_2 * VELOCITY_UNIT_M_S:.3f} m/s")
     print(f"Total velocity change: {delta_v_total * VELOCITY_UNIT_M_S:.3f} m/s")
 
-    periods = [2 * math.pi * math.sqrt(radius**3 / mu)
-               for radius in (r_initial, r_initial, r_final)]
-    segment_data = []
-    elapsed = 0.0
-    for radius, inclination, period in zip(
-            (r_initial, r_initial, r_final),
-            (math.radians(initial_inclination_deg), inclination_mid,
-             math.radians(final_inclination_deg)), periods):
-        t_part, r_part, v_part = propagate(
-            120, elapsed, elapsed + period, 0.0, mu, 0.0, radius,
-            inclination=inclination,
-        )
-        segment_data.append((t_part, r_part, v_part))
-        elapsed += period
+    initial_period = 2 * math.pi * math.sqrt(r_initial**3 / mu)
+    final_period = 2 * math.pi * math.sqrt(r_final**3 / mu)
+    transfer_start = initial_period
+    transfer_end = transfer_start + transfer_time
+    total_time = transfer_end + final_period
+    factor = 240 / total_time
+    t_initial, r_initial_path, v_initial_path = propagate(
+        max(2, int(initial_period * factor)), 0.0, initial_period, 0.0,
+        mu, 0.0, r_initial,
+        inclination=math.radians(initial_inclination_deg),
+    )
+    t_transfer, r_transfer, v_transfer = propagate(
+        max(2, int(transfer_time * factor)), transfer_start, transfer_end, 0.0,
+        mu, e_transfer, p_transfer, inclination=inclination_mid,
+    )
+    t_final, r_final_path, v_final_path = propagate(
+        max(2, int(final_period * factor)), transfer_end, total_time, math.pi,
+        mu, 0.0, r_final,
+        inclination=math.radians(final_inclination_deg),
+    )
 
-    # Keep each node sample once while joining the three revolution arcs.
-    t = np.concatenate((segment_data[0][0], segment_data[1][0][1:],
-                        segment_data[2][0][1:]))
-    r = np.concatenate((segment_data[0][1], segment_data[1][1][1:],
-                        segment_data[2][1][1:]))
-    v = np.concatenate((segment_data[0][2], segment_data[1][2][1:],
-                        segment_data[2][2][1:]))
+    # Each arc joins at an ascending node or transfer apocenter; retain one
+    # sample at each maneuver point.
+    t = np.concatenate((t_initial, t_transfer[1:], t_final[1:]))
+    r = np.concatenate((r_initial_path, r_transfer[1:], r_final_path[1:]))
+    v = np.concatenate((v_initial_path, v_transfer[1:], v_final_path[1:]))
     _, _, animation = animate_locus_3d(t, r, v, show=False)
 
 
