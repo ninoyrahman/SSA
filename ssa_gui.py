@@ -2,6 +2,7 @@
 
 import contextlib
 import io
+import inspect
 import traceback
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -204,7 +205,20 @@ class TestGUI:
             )
 
     def _run_one(self, name, function):
-        result = function()
+        captured_output = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(captured_output), \
+                    contextlib.redirect_stderr(captured_output):
+                if "root" in inspect.signature(function).parameters:
+                    result = function(root=self.root)
+                else:
+                    result = function()
+        finally:
+            output = captured_output.getvalue()
+            if output:
+                self._write_output(output)
+                if not output.endswith("\n"):
+                    self._write_output("\n")
         self._write_output(f"PASS {name}\n")
         if result is not None:
             self._write_output(f"  Result: {result}\n")
