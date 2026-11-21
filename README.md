@@ -6,7 +6,7 @@ Python utilities for orbital mechanics, spacecraft maneuvers, two-body propagati
 
 - Convert between Earth canonical units and SI units.
 - Solve elliptic, parabolic, and hyperbolic Kepler equations; convert anomalies; convert between Cartesian state vectors and classical orbital elements; propagate two-body states; and calculate time of flight.
-- Calculate Hohmann, bi-elliptic, and one-tangent transfers; plane changes including minimum-cost combined plane changes; circular-orbit phasing; low-thrust transfers; and relative motion in Hill coordinates.
+- Calculate Hohmann, bi-elliptic, and one-tangent transfers; plane changes including minimum-cost combined plane changes; circular-orbit phasing, including noncoplanar phasing; low-thrust transfers; and relative motion in Hill coordinates.
 - Sample two-body trajectories with optional orbital orientation (inclination, RAAN, and argument of periapsis).
 - Plot and animate 3D trajectories, including an equatorial reference curve, spacecraft speed, and optional GIF export.
 - Explore interactive propagation examples for inclined orbits, combined inclination and RAAN changes, Hohmann and bi-elliptic transfers, and minimum-cost plane changes.
@@ -50,4 +50,4 @@ To open the interactive test runner:
 python ssa_gui.py
 ```
 
-Select **Util**, **Maneuvers**, or **Propagate** and then choose an individual test or **All tests**. The **Action** menu provides shortcuts for each suite and test. The Propagate suite includes transfer and plane-change trajectory animations; when running examples that save an animation, a file dialog lets you choose a GIF destination. Use **File → Open GIF…** or **Ctrl+O** to load a GIF into the **Preview** tab.
+Select **Util**, **Maneuvers**, or **Propagate** and then choose an individual test or **All tests**. The **Action** menu provides shortcuts for each suite and test, and selecting an action switches the runner to the **Output** tab. The Propagate suite includes transfer, plane-change, and noncoplanar phasing trajectory examples; when running examples that save an animation, a file dialog lets you choose a GIF destination. Use **File → Open GIF…** or **Ctrl+O** to load a GIF into the **Preview** tab.
