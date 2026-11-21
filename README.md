@@ -1,4 +1,4 @@
-# Space Situational Awareness (SSA) — v1.1.0
+# Space Situational Awareness (SSA)
 
 Python utilities for orbital mechanics, spacecraft maneuvers, two-body propagation, and visualizing example trajectories. Numerical examples and regression checks are based on Vallado's *Fundamentals of Astrodynamics and Applications*.
 
